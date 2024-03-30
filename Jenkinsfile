@@ -1,19 +1,72 @@
 pipeline {
     agent any
+
+    environment {
+        // Define environment variables that can be used throughout the pipeline
+        JD_IMAGE = 'devocker123/hello-world-app' // Adjust this to your needs
+    }
+
     stages {
+        stage('Preparation') {
+            steps {
+                script {
+                    // Print Docker and system info to help diagnose environment-related issues
+                    sh 'docker version'
+                    sh 'docker info'
+                    echo "Building Docker image: ${env.JD_IMAGE}"
+                }
+            }
+        }
         stage('Build Docker Image') {
             steps {
                 script {
-                    docker.build("devocker123/hello-world-app")
+                    try {
+                        // Attempt to build the Docker image
+                        sh "docker build -t ${env.JD_IMAGE} ."
+                    } catch (Exception err) {
+                        // If the build fails, catch the exception and print an error message
+                        echo "Error building Docker image: ${err.getMessage()}"
+                        // Fail the build so it's clear an error has occurred
+                        error "Stopping build due to build error"
+                    }
                 }
             }
         }
         stage('Run Docker Container') {
             steps {
                 script {
-                    docker.run("devocker123/hello-world-app")
+                    try {
+                        // Attempt to run the Docker container
+                        sh "docker run --name testContainer ${env.JD_IMAGE}"
+                    } catch (Exception err) {
+                        // If running the container fails, catch the exception and print an error message
+                        echo "Error running Docker container: ${err.getMessage()}"
+                        // Optionally clean up if needed
+                        sh "docker rm testContainer -f"
+                        // Fail the build so it's clear an error has occurred
+                        error "Stopping build due to container run error"
+                    }
                 }
             }
+        }
+        stage('Post-Run Cleanup') {
+            steps {
+                script {
+                    // Clean up the test container after run, regardless of success/failure
+                    sh "docker rm testContainer -f"
+                    echo "Cleanup completed."
+                }
+            }
+        }
+    }
+    post {
+        always {
+            // This block ensures that some actions are taken after the pipeline runs, regardless of the result.
+            echo 'Build completed.'
+        }
+        failure {
+            // Actions to take if the pipeline fails. For example, notify someone or log the failure.
+            echo 'Build failed. Investigating issues.'
         }
     }
 }
