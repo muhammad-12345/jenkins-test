@@ -5,80 +5,59 @@ pipeline {
     }
 
     environment {
-        // Define environment variables that can be used throughout the pipeline
-        DOCKERHUB_CREDENTIALS = credentials('docker') // Adjust this to your configured credentials ID
+        // It's assumed that 'docker' credentials are properly set in Jenkins credentials store
+        DOCKERHUB_CREDENTIALS = credentials('docker')
+        IMAGE_NAME = 'devocker123/hello-world-app' // Docker image name
     }
 
     stages {
         stage('Preparation') {
             steps {
                 script {
-                    // Print Docker and system info to help diagnose environment-related issues
-                    sh 'docker version'
-                    sh 'docker info'
-                    echo "Building Docker image: devocker123/hello-world-app"
+                    echo "Attempting to print Docker and system info..."
+                    sh 'docker version || echo "Failed to execute docker version command"'
+                    sh 'docker info || echo "Failed to execute docker info command"'
+                    echo "Building Docker image: ${env.IMAGE_NAME}"
                 }
             }
         }
         stage('Build Docker Image') {
             steps {
                 script {
-                    try {
-                        // Attempt to build the Docker image
-                        sh "docker build -t devocker123/hello-world-app ."
-                    } catch (Exception err) {
-                        // If the build fails, catch the exception and print an error message
-                        echo "Error building Docker image: ${err.getMessage()}"
-                        // Fail the build so it's clear an error has occurred
-                        error "Stopping build due to build error"
-                    }
+                    echo "Building the Docker image..."
+                    sh "docker build -t ${env.IMAGE_NAME} . || echo 'Failed to build Docker image'"
                 }
             }
         }
-        stage('login') {
+        stage('Docker Login') {
             steps {
-                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
+                script {
+                    echo "Logging into Docker Hub..."
+                    sh "echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin || echo 'Failed to login to Docker Hub'"
+                }
             }
         }
         stage('Run Docker Container') {
             steps {
                 script {
-                    try {
-                        // Attempt to run the Docker container
-                        sh "docker run --name testContainer devocker123/hello-world-app"
-                    } catch (Exception err) {
-                        // If running the container fails, catch the exception and print an error message
-                        echo "Error running Docker container: ${err.getMessage()}"
-                        // Optionally clean up if needed
-                        sh "docker rm testContainer -f"
-                        // Fail the build so it's clear an error has occurred
-                        error "Stopping build due to container run error"
-                    } finally {
-                        // Always try to remove the container even if the run fails
-                        sh "docker rm -f testContainer || true"
-                    }
-                }
-            }
-        }
-        stage('Post-Run Cleanup') {
-            steps {
-                script {
-                    // Clean up the test container after run, regardless of success/failure
+                    echo "Running the Docker container..."
+                    sh "docker run --name testContainer ${env.IMAGE_NAME} || echo 'Failed to run Docker container'"
+                    // Add a cleanup step immediately after run attempt
                     sh "docker rm -f testContainer || true"
-                    echo "Cleanup completed."
                 }
             }
         }
+        // Since clean up is now done immediately after run attempt, the 'Post-Run Cleanup' stage may be redundant
     }
     post {
         always {
-            sh 'docker logout'
-            // This block ensures that some actions are taken after the pipeline runs, regardless of the result.
-            echo 'Build completed.'
+            echo "Logging out of Docker..."
+            sh 'docker logout || echo "Failed to logout of Docker"'
+            echo 'Build process completed.'
         }
         failure {
-            // Actions to take if the pipeline fails. For example, notify someone or log the failure.
             echo 'Build failed. Investigating issues.'
+            // Here you can add steps to notify you, like sending an email or a message to a chat service.
         }
     }
 }
