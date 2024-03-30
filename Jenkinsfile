@@ -1,9 +1,12 @@
 pipeline {
-    agent any
+    agent {lable 'linux'}
+    options{
+        buildDiscarder(logRotator(numToKeepStr: '5'))
+    }
 
     environment {
         // Define environment variables that can be used throughout the pipeline
-        JD_IMAGE = 'devocker123/hello-world-app' // Adjust this to your needs
+        DOCKERHUB_CREDENTIALS = credentials('docker') // Adjust this to your needs
     }
 
     stages {
@@ -13,7 +16,7 @@ pipeline {
                     // Print Docker and system info to help diagnose environment-related issues
                     sh 'docker version'
                     sh 'docker info'
-                    echo "Building Docker image: ${env.JD_IMAGE}"
+                    echo "Building Docker image: devocker123/hello-world-app"
                 }
             }
         }
@@ -22,7 +25,7 @@ pipeline {
                 script {
                     try {
                         // Attempt to build the Docker image
-                        sh "docker build -t ${env.JD_IMAGE} ."
+                        sh "docker build -t devocker123/hello-world-app ."
                     } catch (Exception err) {
                         // If the build fails, catch the exception and print an error message
                         echo "Error building Docker image: ${err.getMessage()}"
@@ -32,12 +35,17 @@ pipeline {
                 }
             }
         }
+        stage('login'){
+            steps{
+                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR ==password-stdin'
+            }
+        }
         stage('Run Docker Container') {
             steps {
                 script {
                     try {
                         // Attempt to run the Docker container
-                        sh "docker run --name testContainer ${env.JD_IMAGE}"
+                        sh "docker run --name testContainer devocekr123/hello-world-app"
                     } catch (Exception err) {
                         // If running the container fails, catch the exception and print an error message
                         echo "Error running Docker container: ${err.getMessage()}"
@@ -61,6 +69,7 @@ pipeline {
     }
     post {
         always {
+            sh 'docker logout'
             // This block ensures that some actions are taken after the pipeline runs, regardless of the result.
             echo 'Build completed.'
         }
