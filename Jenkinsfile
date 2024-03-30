@@ -1,12 +1,12 @@
 pipeline {
-    agent {lable 'linux'}
-    options{
+    agent { label 'linux' }
+    options {
         buildDiscarder(logRotator(numToKeepStr: '5'))
     }
 
     environment {
         // Define environment variables that can be used throughout the pipeline
-        DOCKERHUB_CREDENTIALS = credentials('docker') // Adjust this to your needs
+        DOCKERHUB_CREDENTIALS = credentials('docker') // Adjust this to your configured credentials ID
     }
 
     stages {
@@ -35,9 +35,9 @@ pipeline {
                 }
             }
         }
-        stage('login'){
-            steps{
-                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR ==password-stdin'
+        stage('login') {
+            steps {
+                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
             }
         }
         stage('Run Docker Container') {
@@ -45,7 +45,7 @@ pipeline {
                 script {
                     try {
                         // Attempt to run the Docker container
-                        sh "docker run --name testContainer devocekr123/hello-world-app"
+                        sh "docker run --name testContainer devocker123/hello-world-app"
                     } catch (Exception err) {
                         // If running the container fails, catch the exception and print an error message
                         echo "Error running Docker container: ${err.getMessage()}"
@@ -53,6 +53,9 @@ pipeline {
                         sh "docker rm testContainer -f"
                         // Fail the build so it's clear an error has occurred
                         error "Stopping build due to container run error"
+                    } finally {
+                        // Always try to remove the container even if the run fails
+                        sh "docker rm -f testContainer || true"
                     }
                 }
             }
@@ -61,7 +64,7 @@ pipeline {
             steps {
                 script {
                     // Clean up the test container after run, regardless of success/failure
-                    sh "docker rm testContainer -f"
+                    sh "docker rm -f testContainer || true"
                     echo "Cleanup completed."
                 }
             }
